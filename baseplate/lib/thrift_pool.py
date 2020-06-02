@@ -31,7 +31,9 @@ from thrift.protocol.TProtocol import TProtocolException
 from thrift.protocol.TProtocol import TProtocolFactory
 from thrift.Thrift import TApplicationException
 from thrift.Thrift import TException
+from thrift.transport.THeaderTransport import THeaderTransport
 from thrift.transport.TSocket import TSocket
+from thrift.transport.TTransport import TTransportBase
 from thrift.transport.TTransport import TTransportException
 
 from baseplate.lib import config
@@ -117,6 +119,25 @@ def thrift_pool_from_config(
     return ThriftConnectionPool(endpoint=options.endpoint, **kwargs)
 
 
+def _is_transport_connected(trans: TTransportBase) -> bool:
+    if isinstance(trans, THeaderTransport):
+        trans = trans._transport
+
+    assert isinstance(trans, TSocket)
+    sock = trans.handle
+
+    orig_timeout = sock.gettimeout()
+    sock.settimeout(0.0)
+    try:
+        data = sock.recv(1, socket.MSG_PEEK)
+    except BlockingIOError:
+        return True
+    finally:
+        sock.settimeout(orig_timeout)
+
+    return len(data) == 1
+
+
 class ThriftConnectionPool:
     """A pool that maintains a queue of open Thrift connections.
 
@@ -186,7 +207,9 @@ class ThriftConnectionPool:
         for _ in self.retry_policy:
             if prot:
                 if time.time() - prot.baseplate_birthdate < self.max_age:
-                    return prot
+                    if _is_transport_connected(prot.trans):
+                        return prot
+
                 prot.trans.close()
                 prot = None
 

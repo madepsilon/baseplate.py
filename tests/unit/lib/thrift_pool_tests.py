@@ -1,3 +1,4 @@
+import errno
 import queue
 import socket
 import unittest
@@ -119,6 +120,13 @@ class ThriftConnectionPoolTests(unittest.TestCase):
         mock_time.return_value = 123
         mock_prot = mock.Mock(spec=THeaderProtocol.THeaderProtocol)
         mock_prot.baseplate_birthdate = 122
+        mock_trans = mock.Mock(spec=TSocket.TSocket)
+        mock_trans.handle = mock.Mock(spec=socket.socket)
+        mock_trans.handle.recv.side_effect = BlockingIOError
+        mock_trans.isOpen.return_value = True
+        mock_prot.trans = THeaderTransport.THeaderTransport(
+            mock_trans, allowed_client_types=[THeaderTransport.THeaderClientType.HEADERS]
+        )
         self.mock_queue.get.return_value = mock_prot
 
         prot = self.pool._acquire()
@@ -207,8 +215,13 @@ class ThriftConnectionPoolTests(unittest.TestCase):
         mock_time.return_value = 123
         mock_prot = mock.Mock(spec=THeaderProtocol.THeaderProtocol)
         mock_prot.baseplate_birthdate = 122
-        mock_prot.trans = mock.Mock(spec=TSocket.TSocket)
-        mock_prot.trans.isOpen.return_value = True
+        mock_trans = mock.Mock(spec=TSocket.TSocket)
+        mock_trans.handle = mock.Mock(spec=socket.socket)
+        mock_trans.handle.recv.side_effect = BlockingIOError
+        mock_trans.isOpen.return_value = True
+        mock_prot.trans = THeaderTransport.THeaderTransport(
+            mock_trans, allowed_client_types=[THeaderTransport.THeaderClientType.HEADERS]
+        )
         self.mock_queue.get.return_value = mock_prot
 
         with self.pool.connection() as prot:
@@ -224,17 +237,22 @@ class ThriftConnectionPoolTests(unittest.TestCase):
         mock_time.return_value = 123
         mock_prot = mock.Mock(spec=THeaderProtocol.THeaderProtocol)
         mock_prot.baseplate_birthdate = 122
-        mock_prot.trans = mock.Mock(spec=TSocket.TSocket)
-        mock_prot.trans.isOpen.return_value = True
+        mock_trans = mock.Mock(spec=TSocket.TSocket)
+        mock_trans.handle = mock.Mock(spec=socket.socket)
+        mock_trans.handle.recv.side_effect = BlockingIOError
+        mock_trans.isOpen.return_value = True
+        mock_prot.trans = THeaderTransport.THeaderTransport(
+            mock_trans, allowed_client_types=[THeaderTransport.THeaderClientType.HEADERS]
+        )
         self.mock_queue.get.return_value = mock_prot
 
         with self.assertRaises(TException):
             with self.pool.connection() as prot:
-                mock_prot.trans.isOpen.return_value = False
+                mock_trans.isOpen.return_value = False
                 raise TTransport.TTransportException
 
         self.assertEqual(prot, mock_prot)
-        self.assertEqual(mock_prot.trans.close.call_count, 1)
+        self.assertEqual(mock_trans.close.call_count, 1)
         self.assertEqual(self.mock_queue.get.call_count, 1)
         self.assertEqual(self.mock_queue.put.call_count, 1)
         self.assertEqual(self.mock_queue.put.call_args, mock.call(None))
@@ -244,13 +262,21 @@ class ThriftConnectionPoolTests(unittest.TestCase):
         mock_time.return_value = 123
         mock_prot = mock.Mock(spec=THeaderProtocol.THeaderProtocol)
         mock_prot.baseplate_birthdate = 122
-        mock_prot.trans = mock.Mock(spec=TSocket.TSocket)
-        mock_prot.trans.isOpen.return_value = True
+        mock_trans = mock.Mock(spec=TSocket.TSocket)
+        mock_trans.handle = mock.Mock(spec=socket.socket)
+        mock_trans.handle.recv.side_effect = BlockingIOError
+        mock_trans.isOpen.return_value = True
+        mock_prot.trans = THeaderTransport.THeaderTransport(
+            mock_trans, allowed_client_types=[THeaderTransport.THeaderClientType.HEADERS]
+        )
         self.mock_queue.get.return_value = mock_prot
 
-        with self.assertRaises(Exception):
+        class Blah(Exception):
+            pass
+
+        with self.assertRaises(Blah):
             with self.pool.connection() as prot:
-                raise Exception
+                raise Blah
 
         self.assertEqual(prot, mock_prot)
         self.assertEqual(self.mock_queue.get.call_count, 1)
